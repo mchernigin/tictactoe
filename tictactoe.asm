@@ -32,8 +32,14 @@ draw_board:
         push rcx
     loop idx
 
-    write clear, clear_len                ; clear the terminal
-    write title, title_len                ; === TicTacToe ===
+    ; move cursor back except first time
+    mov al, [should_move_cursor]
+    cmp al, 1
+    jne dont_move_cursor
+        write clear, clear_len                
+    dont_move_cursor:
+    mov byte [should_move_cursor], 1
+
     write board_line_empty, board_width   ;      |     |
     call print_board_line_played          ;   X  |  X  |  X
     write board_line_divider, board_width ; _____|_____|_____
@@ -56,6 +62,7 @@ draw_prompt:
     write tmp_buf
 
     write move_msg2, move_msg2_len
+    write clear_prompt, clear_prompt_len
     write prompt, prompt_len
 ret
 
@@ -104,6 +111,15 @@ get_move:
     mov rdx, tmp_buf_len ; length
     syscall
 
+    ; exit on ctrl-D with exit code 130 (SIGINT)
+    cmp rax, 0
+    jne read_successfully
+        write line_break
+        mov rax, 60
+        mov rdi, 130
+        syscall
+    read_successfully:
+
     movzx rbx, byte [tmp_buf] ; move first byte of tmp_buf and zero other bits
     sub rbx, '0'              ; convert char to int basically
 
@@ -125,37 +141,41 @@ ret
 
 
 section .bss
-tmp_buf: resb 256
-tmp_buf_len: equ $ - tmp_buf
-board: resb 9 ; reserve 9 bytes for 9 squares on the board
-              ; 0 - empty
-              ; 1 - x
-              ; 2 - o
-
+    tmp_buf: resb 256
+    tmp_buf_len: equ $ - tmp_buf
+    board: resb 9 ; reserve 9 bytes for 9 squares on the board
+                  ; 0 - empty
+                  ; 1 - x
+                  ; 2 - o
 section .data
-game_state: db 0     ; 0 - playing, -1 - draw, 1 - player1 won, 2 - player2 won
-player_to_move: db 1 ; 1 - player_1 to move
-                     ; 2 - player_2 to move
+    should_move_cursor: db 0
+    game_state: db 0 ;  0 - playing,
+                     ; -1 - draw,
+                     ;  1 - player1 won,
+                     ;  2 - player2 won
+    player_to_move: db 1 ; 1 - player_1 to move
+                         ; 2 - player_2 to move
 section .rodata
-clear: db `\033[2J\033[H`
-clear_len: equ $ - clear
-line_break: db 10
-title: db "=== TicTacToe ===", 10, 10
-title_len: equ $ - title
+    clear: db `\033[12A`
+    clear_len: equ $ - clear
+    line_break: db 10
 
-player_1: db "X"
-player_2: db "O"
-move_msg1: db "Player "
-move_msg1_len: equ $ - move_msg1
-move_msg2: db " to move (enter any empty square):", 10
-move_msg2_len: equ $ - move_msg2
-prompt: db "> "
-prompt_len: equ $ - prompt
+    player_1: db "X"
+    player_2: db "O"
+    move_msg1: db "Player "
+    move_msg1_len: equ $ - move_msg1
+    move_msg2: db " to move (enter any empty square):", 10
+    move_msg2_len: equ $ - move_msg2
+    prompt: db "> "
+    prompt_len: equ $ - prompt
+    clear_prompt: db `                 \r` ; TODO: better way to clear a line
+    clear_prompt_len: equ $ - clear_prompt
 
-boarder_gap: db "  "
-boarder_gap_len: equ $ - boarder_gap
-middle_gap: db "  |  "
-middle_gap_len: equ $ - middle_gap
-board_line_divider: db "_____|_____|_____", 10
-board_line_empty:   db "     |     |     ", 10
-board_width: equ $ - board_line_empty
+    boarder_gap: db "  "
+    boarder_gap_len: equ $ - boarder_gap
+    middle_gap: db "  |  "
+    middle_gap_len: equ $ - middle_gap
+    board_line_divider: db "_____|_____|_____", 10
+    board_line_empty:   db "     |     |     ", 10
+    board_width: equ $ - board_line_empty
+
