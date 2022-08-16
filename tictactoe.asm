@@ -1,11 +1,13 @@
 bits 64
 
 %macro write 1-2 1
+    push rax
     mov rax, 1  ; use "write" syscall
     mov rdi, 1  ; stdout
     mov rsi, %1 ; string
     mov rdx, %2 ; length
     syscall
+    pop rax
 %endmacro
 
 section .text
@@ -21,6 +23,24 @@ _start:
     cmp al, 0
     je make_move
 
+    call draw_board
+    write clear_line, clear_line_len
+    mov al, [game_state]
+    cmp al, -1
+    je game_ended_with_draw
+    game_ended_somebody_won:
+    write move_msg1, move_msg1_len
+    add al, '0'
+    mov [tmp_buf], al
+    write tmp_buf
+    write end_msg_won, end_msg_won_len
+    jmp quit
+
+    game_ended_with_draw:
+    write end_msg_draw, end_msg_draw_len
+    jmp quit
+
+    quit:
     ; exit with 0 exit code
     mov rax, 60
     xor rdi, rdi
@@ -62,7 +82,7 @@ draw_prompt:
     write tmp_buf
 
     write move_msg2, move_msg2_len
-    write clear_prompt, clear_prompt_len
+    write clear_line, clear_line_len
     write prompt, prompt_len
 ret
 
@@ -132,7 +152,6 @@ get_move:
     jne incorrect_input ; if chosen square is already taken
     jmp correct_input
     incorrect_input:
-        ; write clear, clear_len
         call draw_board
         call draw_prompt
         jmp get_move
@@ -151,7 +170,26 @@ get_move:
 ret
 
 update_game_status:
+    ; check if game can continue
+    mov rcx, 9
+    check_cell:
+        movzx rbx, byte [board + rcx - 1]
+        cmp rbx, 0
+        je game_continues
+    loop check_cell
+    jmp determine_result
 
+    ; here we know that game is over. need to determine a result
+    determine_result:
+    xor rdx, rdx
+    check_for_player:
+    inc rdx
+        ; run this for rdx eq 1 and then for rdx eq 2 to check for both players
+    cmp rdx, 2
+    jl check_for_player
+    draw:
+        mov byte [game_state], -1
+    game_continues:
 ret
 
 section .bss
@@ -182,8 +220,9 @@ section .rodata
     move_msg2_len: equ $ - move_msg2
     prompt: db "> "
     prompt_len: equ $ - prompt
-    clear_prompt: db `                 \r` ; TODO: better way to clear a line
-    clear_prompt_len: equ $ - clear_prompt
+    ; TODO: better way to clear a line?
+    clear_line: db `                                                     \r`
+    clear_line_len: equ $ - clear_line
 
     boarder_gap: db "  "
     boarder_gap_len: equ $ - boarder_gap
@@ -192,4 +231,9 @@ section .rodata
     board_line_divider: db "_____|_____|_____", 10
     board_line_empty:   db "     |     |     ", 10
     board_width: equ $ - board_line_empty
+
+    end_msg_won: db " won the game!", 10
+    end_msg_won_len: equ $ - end_msg_won
+    end_msg_draw: db "Game ended with draw!", 10
+    end_msg_draw_len: equ $ - end_msg_draw
 
