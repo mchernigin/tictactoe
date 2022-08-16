@@ -21,9 +21,9 @@ _start:
     cmp al, 0
     je make_move
 
-    ; Exit with 0 exit code
+    ; exit with 0 exit code
     mov rax, 60
-    mov rdi, 0
+    xor rdi, rdi
     syscall
 
 draw_board:
@@ -105,8 +105,8 @@ choose_symbol:
 ret
 
 get_move:
-    mov rax, 0           ; use "read" syscall
-    mov rdi, 0           ; stdin
+    xor rax, rax         ; use "read" syscall
+    xor rdi, rdi         ; stdin
     mov rsi, tmp_buf     ; buffer
     mov rdx, tmp_buf_len ; length
     syscall
@@ -123,6 +123,21 @@ get_move:
     movzx rbx, byte [tmp_buf] ; move first byte of tmp_buf and zero other bits
     sub rbx, '0'              ; convert char to int basically
 
+    cmp rbx, 1
+    jl incorrect_input ; if less than 1
+    cmp rbx, 9
+    jg incorrect_input ; if greater than 9
+    mov al, byte [board + rbx - 1]
+    cmp al, 0
+    jne incorrect_input ; if chosen square is already taken
+    jmp correct_input
+    incorrect_input:
+        ; write clear, clear_len
+        call draw_board
+        call draw_prompt
+        jmp get_move
+    correct_input:
+
     mov al, [player_to_move]
     cmp al, 2
     je player2_to_move
@@ -138,7 +153,6 @@ ret
 update_game_status:
 
 ret
-
 
 section .bss
     tmp_buf: resb 256
